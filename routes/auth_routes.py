@@ -5,6 +5,7 @@ Defines routes for user signup and login.
 
 from flask import Blueprint
 from controllers.auth_controller import signup, login, send_otp, verify_otp, forgot_password, reset_password, test_email
+from controllers.google_auth_controller import google_login, google_callback
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -29,3 +30,9 @@ auth_bp.route("/reset-password", methods=["POST"])(reset_password)
 # GET /api/auth/test-email - Test email sending functionality
 auth_bp.route("/test-email", methods=["GET"])(test_email)
 
+# ── Google OAuth 2.0 ─────────────────────────────────────────────────────────
+# GET /api/auth/google/login    - Redirect to Google's OAuth consent screen
+auth_bp.route("/google/login", methods=["GET"])(google_login)
+
+# GET /api/auth/google/callback - Handle Google's redirect after authentication
+auth_bp.route("/google/callback", methods=["GET"])(google_callback)

@@ -9,7 +9,7 @@ from config.db import db
 # MongoDB collection reference
 users_collection = db["users"]
 
-# Create unique index on email to prevent duplicates
+# Create unique indexes
 users_collection.create_index("email", unique=True)
 
 
@@ -82,6 +82,80 @@ def find_user_by_id(user_id) -> dict | None:
     if user:
         user.pop("password", None)
     return user
+
+
+def find_or_create_google_user(google_id: str, email: str, name: str, picture: str) -> dict:
+    """
+    Find an existing user by email (or google_id) and update their Google info,
+    or create a brand-new OAuth user if none exists.
+
+    Google users have no password field — Google owns their authentication.
+
+    Args:
+        google_id: The unique sub/ID from Google's ID token.
+        email:     Verified email from the Google ID token.
+        name:      Display name from the Google profile.
+        picture:   Profile picture URL from Google.
+
+    Returns:
+        The user document (without password).
+    """
+    now = datetime.now(timezone.utc)
+
+    # Try to find an existing user by email
+    existing = users_collection.find_one({"email": email})
+
+    if existing:
+        # Update Google-specific fields in case they changed
+        users_collection.update_one(
+            {"_id": existing["_id"]},
+            {
+                "$set": {
+                    "google_id": google_id,
+                    "name": name,
+                    "avatar_url": picture,
+                    "is_verified": True,  # Google accounts are always verified
+                    "updated_at": now,
+                }
+            },
+        )
+        existing.update({
+            "google_id": google_id,
+            "name": name,
+            "avatar_url": picture,
+            "is_verified": True,
+        })
+        existing.pop("password", None)
+        return existing
+
+    # Create a new OAuth user (no password)
+    user_doc = {
+        "google_id": google_id,
+        "name": name,
+        "email": email,
+        "password": None,          # Google users never have a local password
+        "avatar_url": picture,
+        "auth_provider": "google",
+        "plan": "free",
+        "usage": {
+            "chat_count": 0,
+            "image_count": 0,
+            "resume_count": 0,
+            "score_count": 0,
+        },
+        "is_verified": True,        # Google handles verification
+        "otp": None,
+        "otp_expiry": None,
+        "reset_token": None,
+        "reset_token_expiry": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    result = users_collection.insert_one(user_doc)
+    user_doc["_id"] = result.inserted_id
+    user_doc.pop("password", None)
+    return user_doc
 
 
 def increment_usage(user_id, usage_type: str) -> bool:

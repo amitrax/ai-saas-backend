@@ -30,7 +30,18 @@ def get_database():
     Create and return a MongoDB database connection.
     Returns the database instance for the AI SaaS application.
     """
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
+    # Use TLS/certifi only for remote Atlas (mongodb+srv or non-localhost) URIs.
+    # Plain localhost MongoDB does NOT use TLS — passing tlsCAFile there
+    # causes an "SSL handshake failed" crash.
+    is_remote = MONGO_URI.startswith("mongodb+srv://") or (
+        "localhost" not in MONGO_URI and "127.0.0.1" not in MONGO_URI
+    )
+
+    client_kwargs = {"serverSelectionTimeoutMS": 5000}
+    if is_remote:
+        client_kwargs["tlsCAFile"] = certifi.where()
+
+    client = MongoClient(MONGO_URI, **client_kwargs)
     db_name = MONGO_URI.rsplit("/", 1)[-1].split("?")[0] if "/" in MONGO_URI else "ai_saas_db"
     db = client[db_name]
 
