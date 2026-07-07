@@ -129,12 +129,26 @@ def signup():
         # Create user (unverified)
         user = create_user(name, email, hashed)
 
-        # Send OTP
-        _create_and_send_otp(email)
+        # ── DEMO MODE: skip OTP email, auto-verify on signup ──────────────────
+        # TODO-REVERT: Remove the block below and uncomment the OTP block to
+        #              restore full email verification.
+        #
+        # Auto-mark the new user as verified so they can log in immediately
+        # without needing to enter an OTP code.
+        now = datetime.now(timezone.utc)
+        users_collection.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"is_verified": True, "verified_at": now}},
+        )
+        print(f"[DEMO] Auto-verified user {email} — OTP step skipped.")
+        # ── END DEMO MODE ─────────────────────────────────────────────────────
+
+        # TODO-REVERT: Uncomment the line below to send a real OTP email:
+        # _create_and_send_otp(email)
 
         return jsonify({
             "success": True,
-            "message": "Account created! Check your email for the verification code.",
+            "message": "Account created! You can now sign in.",
             "data": {
                 "user_id": str(user["_id"]),
                 "email": email,
@@ -266,12 +280,18 @@ def login():
         if not user:
             return jsonify({"success": False, "message": "Invalid email or password."}), 401
 
-        # Block unverified users
-        if not user.get("is_verified"):
-            return jsonify({
-                "success": False,
-                "message": "Please verify your email before logging in. Check your inbox for the OTP.",
-            }), 403
+        # ── DEMO MODE: skip email-verification gate ───────────────────────────
+        # TODO-REVERT: Remove the pass statement and uncomment the if-block
+        #              below to re-enable the verification requirement.
+        #
+        # Original guard (restore when demo is over):
+        # if not user.get("is_verified"):
+        #     return jsonify({
+        #         "success": False,
+        #         "message": "Please verify your email before logging in. Check your inbox for the OTP.",
+        #     }), 403
+        pass  # DEMO: allow unverified users through
+        # ── END DEMO MODE ─────────────────────────────────────────────────────
 
         # Verify password
         is_valid = bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8"))
